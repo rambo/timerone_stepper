@@ -44,13 +44,6 @@ public:
     XBeeReadvoidFuncPtr callback;
 };
 
-/*
-XBeeRead::XBeeRead(XBeeReadvoidFuncPtr _callback)
-: Task(),
-  callback(_callback)
-{
-}
-*/
 XBeeRead::XBeeRead()
 : Task()
 {

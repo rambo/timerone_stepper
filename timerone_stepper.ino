@@ -1,5 +1,3 @@
-#include <TimerOne.h>
-#include <elapsedMillis.h>
 
 #include <avr/pgmspace.h>
 // From http://forum.arduino.cc/index.php?topic=110307.0
@@ -11,15 +9,14 @@
 
 #define RDY_PIN 13
 
-// Veroboard vx
-const uint8_t STEPPER_PINS[] = { 9,A0,2 };
-const uint8_t CFG_PINS[] = { 3, A5, A4 };
+// Step,dir,enable
+constexpr uint8_t STEPPER_PINS[] = { 9, A0, 2 };
+constexpr uint8_t CFG_PINS[] = { 3, A5, A4 };
 
 // 1/4 microstepping, stealthchop
-const int8_t  CFG_VALUES[] = { 1, -1, 0 }; // -1 for open, 0 for LOW, 1 for HIGH
-
-int8_t stepdir = 1;
-volatile uint16_t current_position;
+constexpr uint8_t USTEP_FACTOR = 4;
+constexpr uint8_t STEPS_PER_REV = 200;
+constexpr int8_t  CFG_VALUES[] = { 1, -1, 0 }; // -1 for open, 0 for LOW, 1 for HIGH
 
 
 /*********/
@@ -34,6 +31,11 @@ volatile uint16_t current_position;
 // Get this library from http://code.google.com/p/xbee-arduino/
 #include <XBee.h>
 #include "xbee_tasks.h"
+
+#include <FastGPIO.h>
+#include <TimerOne.h>
+#include "motortask.h"
+
 
 
 void apply_driver_config_pins()
@@ -85,12 +87,6 @@ void setup()
     
 }
 
-volatile boolean stoptimer = false;
-void countstep(void)
-{
-    motortask.current_position = motortask.current_position + motortask.stepdir;
-    motortask.stepped = true;
-}
 
 // This implements the XBee API, first byte is command identifier rest of them are command specific.
 void xbee_api_callback(ZBRxResponse rx)
