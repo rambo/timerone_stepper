@@ -20,9 +20,9 @@ public:
     MotorTask();
     virtual void run(uint32_t now);
     virtual bool canRun(uint32_t now);
-    void start();
+    void start_stepping();
     void hard_stop();
-    void home();
+    void go_home();
     void home_done();
     void set_pps(uint16_t pps);
     void accelerate();
@@ -41,10 +41,10 @@ public:
 MotorTask::MotorTask()
 : Task()
 {
-    Timer1.initialize(150000);
-    Timer1.pwm(STEPPER_PINS[0], 1023/2);
-    Timer1.attachInterrupt(countstep);
+    Timer1.initialize(5000);
     Timer1.stop();
+//    Timer1.attachInterrupt(countstep);
+    pinMode(RDY_PIN, OUTPUT);
 }
 
 
@@ -68,6 +68,9 @@ bool MotorTask::canRun(uint32_t now)
 
 void MotorTask::set_position(uint16_t tgt_position)
 {
+#ifndef USE_XBEE
+    Serial.println(F("set_position called"));
+#endif
     // TODO: Check that we do not attempt to change direction instantly
     target_position = tgt_position;
     if (target_position < current_position)
@@ -80,8 +83,11 @@ void MotorTask::set_position(uint16_t tgt_position)
     }
 }
 
-void MotorTask::home(void)
+void MotorTask::go_home(void)
 {
+#ifndef USE_XBEE
+    Serial.println(F("go_home called"));
+#endif
     target_position = 0;
     homing = true;
     stepdir = -1;
@@ -89,6 +95,9 @@ void MotorTask::home(void)
 
 void MotorTask::home_done(void)
 {
+#ifndef USE_XBEE
+    Serial.println(F("home_done called"));
+#endif
     homing = false;
     stepdir = 0;
     current_position = 0;
@@ -96,6 +105,9 @@ void MotorTask::home_done(void)
 
 void MotorTask::set_target_speed(uint16_t speed)
 {
+#ifndef USE_XBEE
+    Serial.println(F("set_target_speed called"));
+#endif
     target_speed = speed;
     if (target_speed > MAX_PPS)
     {
@@ -109,6 +121,9 @@ void MotorTask::set_target_speed(uint16_t speed)
 
 void MotorTask::accelerate(void)
 {
+#ifndef USE_XBEE
+    Serial.println(F("accelerate called"));
+#endif
     uint16_t set_current_speed;
     // limit the target speed to max we can manage with HW
     // We should be moving at min speed if at all
@@ -138,7 +153,14 @@ void MotorTask::accelerate(void)
             set_current_speed = target_speed;
         }
     }
-    if (set_current_speed == 0)
+
+#ifndef USE_XBEE
+    Serial.print(F("current_speed="));
+    Serial.println(current_speed, DEC);
+    Serial.print(F("set_current_speed="));
+    Serial.println(set_current_speed, DEC);
+#endif
+if (set_current_speed == 0)
     {
         this->hard_stop();
     }
@@ -146,7 +168,7 @@ void MotorTask::accelerate(void)
     {
         if (current_speed == 0)
         {
-            this->start();
+            this->start_stepping();
         }
         this->set_pps(set_current_speed);
     }
@@ -154,8 +176,12 @@ void MotorTask::accelerate(void)
 
 void MotorTask::hard_stop(void)
 {
+#ifndef USE_XBEE
+    Serial.println(F("hard_stop called"));
+#endif
     target_speed = 0;
     Timer1.stop();
+    digitalWrite(RDY_PIN, LOW);
     current_speed = 0;
     // Disable the driver
     FastGPIO::Pin<STEPPER_PINS[2]>::setOutputValueHigh();
@@ -163,13 +189,20 @@ void MotorTask::hard_stop(void)
 
 void MotorTask::set_pps(uint16_t pps)
 {
+#ifndef USE_XBEE
+    Serial.println(F("set_pps called"));
+#endif
     current_speed = pps;
     last_speed_adjust = millis();
     Timer1.setPeriod(1000000 / pps);
 }
 
-void MotorTask::start(void)
+void MotorTask::start_stepping(void)
 {
+#ifndef USE_XBEE
+    Serial.println(F("start_stepping called"));
+#endif
+    Timer1.pwm(STEPPER_PINS[0], 1023/2);
     this->set_pps(MIN_PPS);
     // Enable the driver
     FastGPIO::Pin<STEPPER_PINS[2]>::setOutputValueHigh();
@@ -183,10 +216,14 @@ void MotorTask::start(void)
         FastGPIO::Pin<STEPPER_PINS[1]>::setOutputValueLow();
     }
     Timer1.restart();
+    digitalWrite(RDY_PIN, HIGH);
 }
 
 void MotorTask::run(uint32_t now)
 {
+#ifndef USE_XBEE
+    Serial.println(F("run called"));
+#endif
     if (!homing)
     {
         if (   stepdir < 0 && current_position <= target_position
