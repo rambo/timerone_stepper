@@ -26,18 +26,19 @@ void Sweeper::run(uint32_t now)
 {
     // If the LED is on, turn it off and remember the state.
     if (on) {
-        Serial.println(F("Go to 0"));
-        motortask.set_position(0);
-        motortask.set_target_speed(800);
-        motortask.start_stepping();
+        Serial.println(F("Go home"));
+        motortask.go_home();
         on = false;
     // If the LED is off, turn it on and remember the state.
     } else {
-        Serial.println(F("Go to 800"));
-        motortask.set_position(800);
-        motortask.set_target_speed(800);
-        motortask.start_stepping();
-        on = true;
+        if (!motortask.homing)
+        {
+          Serial.println(F("Go to 800"));
+          motortask.set_position(800);
+          motortask.set_target_speed(800);
+          motortask.start_stepping();
+          on = true;
+        }
     }
     // Run again in the required number of milliseconds.
     incRunTime(rate);

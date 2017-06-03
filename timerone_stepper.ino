@@ -16,6 +16,7 @@
 // Step,dir,enable
 constexpr uint8_t STEPPER_PINS[] = { 9, 10, 3 };
 constexpr uint8_t CFG_PINS[] = { 4, 5, 6 };
+constexpr uint8_t HOMESW_PIN = 11;
 
 // 1/4 microstepping, stealthchop
 constexpr uint8_t USTEP_FACTOR = 4;
@@ -32,6 +33,7 @@ constexpr int8_t  CFG_VALUES[] = { 1, -1, 0 }; // -1 for open, 0 for LOW, 1 for 
 #include <Task.h>
 #include <TaskScheduler.h>
 
+#include <Bounce2.h>
 #include <FastGPIO.h>
 #include <TimerOne.h>
 #include "motortask.h"
@@ -89,10 +91,10 @@ void setup()
     pinMode(RDY_PIN, OUTPUT);
     pinMode(STEPPER_PINS[2], OUTPUT);
     pinMode(STEPPER_PINS[1], OUTPUT);
-//    pinMode(STEPPER_PINS[0], OUTPUT);
+    pinMode(12, OUTPUT);
     digitalWrite(STEPPER_PINS[1], 1);
     digitalWrite(STEPPER_PINS[2], 1);
-//    digitalWrite(STEPPER_PINS[0], 0);
+    digitalWrite(12, 0);
 
     apply_driver_config_pins();
 

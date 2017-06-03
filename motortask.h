@@ -5,6 +5,8 @@
 #include <Task.h>
 #include <FastGPIO.h>
 #include <TimerOne.h>
+#include <Bounce2.h>
+
 
 #define SPEED_ADJUST_INTERVAL 50
 #define MIN_PPS 5
@@ -36,18 +38,31 @@ public:
     uint32_t last_speed_adjust;
     uint16_t target_speed = MAX_PPS;
     uint16_t current_speed;
+    Bounce homesw = Bounce();
+
 };
 
 MotorTask::MotorTask()
 : Task()
 {
     pinMode(RDY_PIN, OUTPUT);
+    pinMode(HOMESW_PIN, INPUT_PULLUP);
+    homesw.attach(HOMESW_PIN);
+    homesw.interval(5); // interval in ms
 }
 
 
 // We can't just return true since then no other task could ever run (since we have the priority)
 bool MotorTask::canRun(uint32_t now)
 {
+    homesw.update();
+    if (homing)
+    {
+        if (!homesw.read())
+        {
+            this->home_done();
+        }
+    }
     if (stepped)
     {
         stepped = false;
@@ -88,6 +103,8 @@ void MotorTask::go_home(void)
     target_position = 0;
     homing = true;
     stepdir = -1;
+    this->set_target_speed(MAX_PPS);
+    this->start_stepping();
 }
 
 void MotorTask::home_done(void)
@@ -95,6 +112,7 @@ void MotorTask::home_done(void)
 #ifndef USE_XBEE
     Serial.println(F("home_done called"));
 #endif
+    this->hard_stop();
     homing = false;
     stepdir = 0;
     current_position = 0;
@@ -221,6 +239,9 @@ void MotorTask::run(uint32_t now)
         if (   stepdir < 0 && current_position <= target_position
             || stepdir > 1 && current_position >= target_position)
         {
+        }
+        if (stepdir < 1 && !homesw.read())
+        {
             this->hard_stop();
         }
     }
@@ -233,17 +254,20 @@ void MotorTask::run(uint32_t now)
         Serial.println(target_position, DEC);
 #endif
         last_speed_adjust = now;
-        uint16_t dtg;
-        if (current_position < target_position)
+        if (!homing)
         {
-            dtg = target_position - current_position;
+            uint16_t dtg;
+            if (current_position < target_position)
+            {
+                dtg = target_position - current_position;
+            }
+            else
+            {
+                dtg = current_position - target_position;
+            }
+            // TODO: figure out a better accel/deccel algo
+            this->set_target_speed(dtg);
         }
-        else
-        {
-            dtg = current_position - target_position;
-        }
-        // TODO: figure out a better accel/deccel algo
-        this->set_target_speed(dtg);
         if (target_speed != current_speed)
         {
             this->accelerate();
