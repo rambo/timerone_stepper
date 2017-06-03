@@ -41,9 +41,6 @@ public:
 MotorTask::MotorTask()
 : Task()
 {
-    Timer1.initialize(5000);
-    Timer1.stop();
-//    Timer1.attachInterrupt(countstep);
     pinMode(RDY_PIN, OUTPUT);
 }
 
@@ -105,9 +102,6 @@ void MotorTask::home_done(void)
 
 void MotorTask::set_target_speed(uint16_t speed)
 {
-#ifndef USE_XBEE
-    Serial.println(F("set_target_speed called"));
-#endif
     target_speed = speed;
     if (target_speed > MAX_PPS)
     {
@@ -193,8 +187,8 @@ void MotorTask::set_pps(uint16_t pps)
     Serial.println(F("set_pps called"));
 #endif
     current_speed = pps;
-    last_speed_adjust = millis();
     Timer1.setPeriod(1000000 / pps);
+    Timer1.pwm(STEPPER_PINS[0], 1023/2);
 }
 
 void MotorTask::start_stepping(void)
@@ -202,10 +196,9 @@ void MotorTask::start_stepping(void)
 #ifndef USE_XBEE
     Serial.println(F("start_stepping called"));
 #endif
-    Timer1.pwm(STEPPER_PINS[0], 1023/2);
     this->set_pps(MIN_PPS);
     // Enable the driver
-    FastGPIO::Pin<STEPPER_PINS[2]>::setOutputValueHigh();
+    FastGPIO::Pin<STEPPER_PINS[2]>::setOutputValueLow();
     // Set direction
     if (stepdir > 0)
     {
@@ -215,15 +208,14 @@ void MotorTask::start_stepping(void)
     {
         FastGPIO::Pin<STEPPER_PINS[1]>::setOutputValueLow();
     }
-    Timer1.restart();
+    Timer1.initialize(1000000 / current_speed);
+    Timer1.attachInterrupt(countstep);
+    Timer1.pwm(STEPPER_PINS[0], 1023/2);
     digitalWrite(RDY_PIN, HIGH);
 }
 
 void MotorTask::run(uint32_t now)
 {
-#ifndef USE_XBEE
-    Serial.println(F("run called"));
-#endif
     if (!homing)
     {
         if (   stepdir < 0 && current_position <= target_position
@@ -234,6 +226,13 @@ void MotorTask::run(uint32_t now)
     }
     if ((now - last_speed_adjust) > SPEED_ADJUST_INTERVAL)
     {
+#ifndef USE_XBEE
+        Serial.print(F("current_position="));
+        Serial.println(current_position, DEC);
+        Serial.print(F("target_position="));
+        Serial.println(target_position, DEC);
+#endif
+        last_speed_adjust = now;
         uint16_t dtg;
         if (current_position < target_position)
         {

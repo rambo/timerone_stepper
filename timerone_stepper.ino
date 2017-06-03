@@ -9,12 +9,13 @@
 
 
 //#define USE_XBEE
+#define DEBUG
 
 #define RDY_PIN 13
 
 // Step,dir,enable
-constexpr uint8_t STEPPER_PINS[] = { 9, 10, 2 };
-constexpr uint8_t CFG_PINS[] = { 3, 4, 5 };
+constexpr uint8_t STEPPER_PINS[] = { 9, 10, 3 };
+constexpr uint8_t CFG_PINS[] = { 4, 5, 6 };
 
 // 1/4 microstepping, stealthchop
 constexpr uint8_t USTEP_FACTOR = 4;
@@ -88,9 +89,10 @@ void setup()
     pinMode(RDY_PIN, OUTPUT);
     pinMode(STEPPER_PINS[2], OUTPUT);
     pinMode(STEPPER_PINS[1], OUTPUT);
-    pinMode(STEPPER_PINS[0], OUTPUT);
+//    pinMode(STEPPER_PINS[0], OUTPUT);
     digitalWrite(STEPPER_PINS[1], 1);
     digitalWrite(STEPPER_PINS[2], 1);
+//    digitalWrite(STEPPER_PINS[0], 0);
 
     apply_driver_config_pins();
 
@@ -122,7 +124,7 @@ void loop()
         &motortask
     };
 #else
-    Sweeper sweeptask(5000);
+    Sweeper sweeptask(10000);
     Task *tasks[] = { 
         &sweeptask,
         &motortask
