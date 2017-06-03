@@ -6,9 +6,11 @@
 #define FSA(x) FS(pgm_read_word(&(x)))
 // Generic helper implementation
 #define ARRAY_SIZE(a)      (sizeof(a) / sizeof(a[0]))
+//#define MOTOR_REPORT_TO 0x0013a200, 0x403276df
+#define MOTOR_REPORT_TO 0x0, 0x0
 
 
-//#define USE_XBEE
+#define USE_XBEE
 #define DEBUG
 
 #define RDY_PIN 13
@@ -21,17 +23,18 @@ constexpr uint8_t HOMESW_PIN = 11;
 // 1/4 microstepping, stealthchop
 constexpr uint8_t USTEP_FACTOR = 4;
 constexpr uint8_t STEPS_PER_REV = 200;
+constexpr uint8_t MAX_RPS = 2;
 constexpr int8_t  CFG_VALUES[] = { 1, -1, 0 }; // -1 for open, 0 for LOW, 1 for HIGH
 
 
 /*********/
 
-#define XBEE_SERIAL Serial
 
 // Get this library from http://bleaklow.com/files/2010/Task.tar.gz (and fix WProgram.h -> Arduino.h)
 // and read http://bleaklow.com/2010/07/20/a_very_simple_arduino_task_manager.html for background and instructions
 #include <Task.h>
 #include <TaskScheduler.h>
+#include "valueparser.h"
 
 #include <Bounce2.h>
 #include <FastGPIO.h>
@@ -40,12 +43,17 @@ constexpr int8_t  CFG_VALUES[] = { 1, -1, 0 }; // -1 for open, 0 for LOW, 1 for 
 
 
 #ifdef USE_XBEE
+#define XBEE_SERIAL Serial
 // Get this library from http://code.google.com/p/xbee-arduino/
+#include <SoftwareSerial.h>
+SoftwareSerial swSerial(A0, A1); // rx,tx
+#define DEBUG_SERIAL swSerial
 #include <XBee.h>
 #include "xbee_tasks.h"
 #else
 //#include "serialtask.h"
 #include "sweeptask.h"
+#define DEBUG_SERIAL Serial
 #endif
 
 
@@ -91,10 +99,15 @@ void setup()
     pinMode(RDY_PIN, OUTPUT);
     pinMode(STEPPER_PINS[2], OUTPUT);
     pinMode(STEPPER_PINS[1], OUTPUT);
-    pinMode(12, OUTPUT);
     digitalWrite(STEPPER_PINS[1], 1);
     digitalWrite(STEPPER_PINS[2], 1);
+
+    
+    // Extra GND pins    
+    pinMode(12, OUTPUT);
     digitalWrite(12, 0);
+    pinMode(A2, OUTPUT);
+    digitalWrite(A2, 0);
 
     apply_driver_config_pins();
 
@@ -103,8 +116,10 @@ void setup()
     // Initialize the XBee wrapper
     XBEE_SERIAL.begin(57600);
     xbee.begin(XBEE_SERIAL);
-#else
-    Serial.begin(57600);
+#endif
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.begin(57600);
+    DEBUG_SERIAL.println(F("Booted"));
 #endif
 }
 
@@ -113,6 +128,45 @@ void setup()
 // This implements the XBee API, first byte is command identifier rest of them are command specific.
 void xbee_api_callback(ZBRxResponse rx)
 {
+    switch(rx.getData(0))
+    {
+        case 'h':
+        case 'H':
+            DEBUG_SERIAL.println(F("Going home"));
+            motortask.go_home();
+        break;
+        case 's':
+        case 'S':
+            DEBUG_SERIAL.println(F("Stopping"));
+            motortask.hard_stop();
+        break;
+        case 'g':
+        case 'G':
+            uint16_t go_to = ardubus_hex2uint(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4));
+            DEBUG_SERIAL.print(F("Going to "));
+            DEBUG_SERIAL.println(go_to, DEC);
+            motortask.set_position(go_to);
+            motortask.set_target_speed(MAX_PPS);
+            motortask.start_stepping();
+        break;
+        
+    }
+}
+
+XBeeAddress64 coordinator_addr64 = XBeeAddress64(MOTOR_REPORT_TO);
+uint8_t motor_payload[] = {
+  'M', // Identify as motor packet
+  0x0, // type
+  0x0,0x0 // uin16_t, position
+};
+ZBTxRequest zb_motor_Tx = ZBTxRequest(coordinator_addr64, motor_payload, sizeof(motor_payload));
+
+void motor_stop_callback()
+{
+    uint16_t pos = motortask.current_position;
+    motor_payload[2] = pos >> 8;
+    motor_payload[3] = 0x00ff & pos;
+    xbee.send(zb_motor_Tx);
 }
 #endif
 
@@ -120,6 +174,7 @@ void loop()
 {
 #ifdef USE_XBEE
     // Add the XBee API callback function pointer to the task
+    motortask.stop_callback = &motor_stop_callback;
     xbeereader.callback = &xbee_api_callback;
     Task *tasks[] = { 
         &xbeereader,
@@ -132,6 +187,8 @@ void loop()
         &motortask
     };
 #endif
+    motortask.go_home();
+    DEBUG_SERIAL.println(F("Starting tasks"));
     TaskScheduler sched(tasks, NUM_TASKS(tasks));
 
     // Run the scheduler - never returns.

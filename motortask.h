@@ -9,10 +9,12 @@
 
 
 #define SPEED_ADJUST_INTERVAL 50
-#define MIN_PPS 5
-#define PPS_SNAP_LIMIT 20
-#define MAX_PPS (USTEP_FACTOR * STEPS_PER_REV)
+#define MIN_PPS 20
+#define PPS_SNAP_LIMIT 80
+constexpr uint16_t MAX_PPS = USTEP_FACTOR * STEPS_PER_REV * MAX_RPS;
 
+
+typedef void (*MotoTaskvoidFuncPtr)(void);
 
 void countstep(void);
 
@@ -39,6 +41,7 @@ public:
     uint16_t target_speed = MAX_PPS;
     uint16_t current_speed;
     Bounce homesw = Bounce();
+    MotoTaskvoidFuncPtr stop_callback;
 
 };
 
@@ -80,8 +83,8 @@ bool MotorTask::canRun(uint32_t now)
 
 void MotorTask::set_position(uint16_t tgt_position)
 {
-#ifndef USE_XBEE
-    Serial.println(F("set_position called"));
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println(F("set_position called"));
 #endif
     // TODO: Check that we do not attempt to change direction instantly
     target_position = tgt_position;
@@ -97,8 +100,8 @@ void MotorTask::set_position(uint16_t tgt_position)
 
 void MotorTask::go_home(void)
 {
-#ifndef USE_XBEE
-    Serial.println(F("go_home called"));
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println(F("go_home called"));
 #endif
     target_position = 0;
     homing = true;
@@ -109,8 +112,8 @@ void MotorTask::go_home(void)
 
 void MotorTask::home_done(void)
 {
-#ifndef USE_XBEE
-    Serial.println(F("home_done called"));
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println(F("home_done called"));
 #endif
     this->hard_stop();
     homing = false;
@@ -133,8 +136,8 @@ void MotorTask::set_target_speed(uint16_t speed)
 
 void MotorTask::accelerate(void)
 {
-#ifndef USE_XBEE
-    Serial.println(F("accelerate called"));
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println(F("accelerate called"));
 #endif
     uint16_t set_current_speed;
     // limit the target speed to max we can manage with HW
@@ -166,11 +169,11 @@ void MotorTask::accelerate(void)
         }
     }
 
-#ifndef USE_XBEE
-    Serial.print(F("current_speed="));
-    Serial.println(current_speed, DEC);
-    Serial.print(F("set_current_speed="));
-    Serial.println(set_current_speed, DEC);
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.print(F("current_speed="));
+    DEBUG_SERIAL.println(current_speed, DEC);
+    DEBUG_SERIAL.print(F("set_current_speed="));
+    DEBUG_SERIAL.println(set_current_speed, DEC);
 #endif
 if (set_current_speed == 0)
     {
@@ -188,8 +191,8 @@ if (set_current_speed == 0)
 
 void MotorTask::hard_stop(void)
 {
-#ifndef USE_XBEE
-    Serial.println(F("hard_stop called"));
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println(F("hard_stop called"));
 #endif
     target_speed = 0;
     Timer1.stop();
@@ -197,12 +200,17 @@ void MotorTask::hard_stop(void)
     current_speed = 0;
     // Disable the driver
     FastGPIO::Pin<STEPPER_PINS[2]>::setOutputValueHigh();
+    target_position = current_position;
+    if (stop_callback)
+    {
+        this->stop_callback();
+    }
 }
 
 void MotorTask::set_pps(uint16_t pps)
 {
-#ifndef USE_XBEE
-    Serial.println(F("set_pps called"));
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println(F("set_pps called"));
 #endif
     current_speed = pps;
     Timer1.setPeriod(1000000 / pps);
@@ -211,8 +219,8 @@ void MotorTask::set_pps(uint16_t pps)
 
 void MotorTask::start_stepping(void)
 {
-#ifndef USE_XBEE
-    Serial.println(F("start_stepping called"));
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println(F("start_stepping called"));
 #endif
     this->set_pps(MIN_PPS);
     // Enable the driver
@@ -247,11 +255,11 @@ void MotorTask::run(uint32_t now)
     }
     if ((now - last_speed_adjust) > SPEED_ADJUST_INTERVAL)
     {
-#ifndef USE_XBEE
-        Serial.print(F("current_position="));
-        Serial.println(current_position, DEC);
-        Serial.print(F("target_position="));
-        Serial.println(target_position, DEC);
+#ifdef DEBUG_SERIAL
+        DEBUG_SERIAL.print(F("current_position="));
+        DEBUG_SERIAL.println(current_position, DEC);
+        DEBUG_SERIAL.print(F("target_position="));
+        DEBUG_SERIAL.println(target_position, DEC);
 #endif
         last_speed_adjust = now;
         if (!homing)
@@ -266,7 +274,7 @@ void MotorTask::run(uint32_t now)
                 dtg = current_position - target_position;
             }
             // TODO: figure out a better accel/deccel algo
-            this->set_target_speed(dtg);
+            this->set_target_speed(dtg*4);
         }
         if (target_speed != current_speed)
         {
