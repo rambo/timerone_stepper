@@ -109,6 +109,7 @@ void MotorTask::go_home(void)
     target_position = 0;
     homing = true;
     stepdir = -1;
+    this->set_max_speed(MAX_PPS);
     this->set_target_speed(MAX_PPS);
     this->start_stepping();
 }
@@ -233,6 +234,13 @@ void MotorTask::start_stepping(void)
 #ifdef DEBUG_SERIAL
     DEBUG_SERIAL.println(F("start_stepping called"));
 #endif
+    if (target_position == current_position && !homing)
+    {
+#ifdef DEBUG_SERIAL
+        DEBUG_SERIAL.println(F("target_position == current_position, abort!"));
+#endif
+        return;
+    }
     this->set_pps(MIN_PPS);
     // Enable the driver
     FastGPIO::Pin<STEPPER_PINS[2]>::setOutputValueLow();

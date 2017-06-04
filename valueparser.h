@@ -35,5 +35,10 @@ inline uint16_t ardubus_hex2uint(byte hexchar0, byte hexchar1, byte hexchar2, by
     return ardubus_hex2byte(hexchar0, hexchar1) << 8 | ardubus_hex2byte(hexchar2, hexchar3);
 }
 
+inline uint32_t ardubus_hex2ulong(byte hexchar0, byte hexchar1, byte hexchar2, byte hexchar3, byte hexchar4, byte hexchar5, byte hexchar6, byte hexchar7)
+{
+    return ardubus_hex2byte(hexchar0, hexchar1) << 24 | ardubus_hex2byte(hexchar2, hexchar3) << 16 | ardubus_hex2byte(hexchar4, hexchar5) << 8 | ardubus_hex2byte(hexchar6, hexchar7);
+}
+
 
 #endif

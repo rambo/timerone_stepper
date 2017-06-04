@@ -131,29 +131,36 @@ void xbee_api_callback(ZBRxResponse rx)
     {
         case 'h':
         case 'H':
+        {
 #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.println(F("Going home"));
-            motortask.go_home();
 #endif
-        break;
+            motortask.go_home();
+            break;
+        }
         case 's':
         case 'S':
+        {
 #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.println(F("Stopping"));
-            motortask.hard_stop();
 #endif
-        break;
+            motortask.hard_stop();
+            break;
+        }
         case 'f':
         case 'F':
+        {
             uint16_t maxspeed = ardubus_hex2uint(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4));
 #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.print(F("Setting max_speed"));
             DEBUG_SERIAL.println(maxspeed, DEC);
 #endif
             motortask.set_max_speed(maxspeed);
-        break
+            break;
+        }
         case 'g':
         case 'G':
+        {
             uint16_t go_to = ardubus_hex2uint(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4));
 #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.print(F("Going to "));
@@ -162,8 +169,8 @@ void xbee_api_callback(ZBRxResponse rx)
             motortask.set_position(go_to);
             motortask.set_target_speed(motortask.max_speed);
             motortask.start_stepping();
-        break;
-        
+            break;
+        }
     }
 }
 
@@ -177,9 +184,18 @@ ZBTxRequest zb_motor_Tx = ZBTxRequest(coordinator_addr64, motor_payload, sizeof(
 
 void motor_stop_callback()
 {
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println(F("motor_stop_callback called"));
+#endif
     uint16_t pos = motortask.current_position;
     motor_payload[2] = pos >> 8;
     motor_payload[3] = 0x00ff & pos;
+#ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.print(F("motor_payload[2]=0x"));
+    DEBUG_SERIAL.println(motor_payload[2], HEX);
+    DEBUG_SERIAL.print(F("motor_payload[3]=0x"));
+    DEBUG_SERIAL.println(motor_payload[3], HEX);
+#endif
     xbee.send(zb_motor_Tx);
 }
 #endif
