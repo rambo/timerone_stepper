@@ -56,6 +56,41 @@ constexpr int8_t  CFG_VALUES[] = { 1, -1, 0 }; // -1 for open, 0 for LOW, 1 for 
 #include "sweeptask.h"
 #endif
 
+
+XBeeAddress64 coordinator_addr64 = XBeeAddress64(MOTOR_REPORT_TO);
+uint8_t motor_payload[] = {
+  'M', // Identify as motor packet
+  0x0, // type
+  0x0,0x0,0x0,0x0, // int32_t, current_position
+  0x0,0x0,0x0,0x0, // int32_t, target_position
+  0x0 // homing
+};
+ZBTxRequest zb_motor_Tx = ZBTxRequest(coordinator_addr64, motor_payload, sizeof(motor_payload));
+
+void pack_payload_position(uint8_t idx, int32_t pos)
+{
+    motor_payload[idx] = pos >> 24;
+    motor_payload[idx+1] = (0x00ffffff & pos) >> 16;
+    motor_payload[idx+2] = (0x0000ffff & pos) >> 8;
+    motor_payload[idx+3] = (0x000000ff & pos);
+}
+
+void debug_print_payload_position(uint8_t idx, uint8_t num_bytes)
+{
+#ifdef DEBUG_SERIAL
+    uint8_t tgt = idx + num_bytes;
+    for (uint8_t i=idx; i < tgt ; i++)
+    {
+        DEBUG_SERIAL.print(F("motor_payload["));
+        DEBUG_SERIAL.print(i, DEC);
+        DEBUG_SERIAL.print(F("]=0x"));
+        DEBUG_SERIAL.println(motor_payload[i], HEX);
+      
+    }
+#endif
+}
+
+
 #include "reporttask.h"
 
 
@@ -161,7 +196,7 @@ void xbee_api_callback(ZBRxResponse rx)
         case 'g':
         case 'G':
         {
-            uint16_t go_to = ardubus_hex2uint(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4));
+            int32_t go_to = ardubus_hex2long(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4),rx.getData(5),rx.getData(6),rx.getData(7), rx.getData(8));
 #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.print(F("Going to "));
             DEBUG_SERIAL.println(go_to, DEC);
@@ -174,28 +209,17 @@ void xbee_api_callback(ZBRxResponse rx)
     }
 }
 
-XBeeAddress64 coordinator_addr64 = XBeeAddress64(MOTOR_REPORT_TO);
-uint8_t motor_payload[] = {
-  'M', // Identify as motor packet
-  0x0, // type
-  0x0,0x0 // uin16_t, position
-};
-ZBTxRequest zb_motor_Tx = ZBTxRequest(coordinator_addr64, motor_payload, sizeof(motor_payload));
 
 void motor_stop_callback()
 {
 #ifdef DEBUG_SERIAL
     DEBUG_SERIAL.println(F("motor_stop_callback called"));
 #endif
-    uint16_t pos = motortask.current_position;
-    motor_payload[2] = pos >> 8;
-    motor_payload[3] = 0x00ff & pos;
-#ifdef DEBUG_SERIAL
-    DEBUG_SERIAL.print(F("motor_payload[2]=0x"));
-    DEBUG_SERIAL.println(motor_payload[2], HEX);
-    DEBUG_SERIAL.print(F("motor_payload[3]=0x"));
-    DEBUG_SERIAL.println(motor_payload[3], HEX);
-#endif
+    motor_payload[1] = 'S'; // Stop report
+    pack_payload_position(2, motortask.current_position);
+    pack_payload_position(6, motortask.target_position);
+    motor_payload[10] = motortask.homing;
+    debug_print_payload_position(0, sizeof(motor_payload));
     xbee.send(zb_motor_Tx);
 }
 #endif

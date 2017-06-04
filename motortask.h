@@ -33,12 +33,12 @@ public:
     void accelerate();
     void set_target_speed(uint16_t speed);
     void set_max_speed(uint16_t speed);
-    void set_position(uint16_t tgt_position);
+    void set_position(int32_t tgt_position);
     volatile bool stepped;
     volatile int32_t current_position;
     bool homing;
     int8_t stepdir;
-    uint16_t target_position;
+    int32_t target_position;
     uint32_t last_speed_adjust;
     uint16_t target_speed = MAX_PPS;
     uint16_t max_speed = MAX_PPS;
@@ -84,7 +84,7 @@ bool MotorTask::canRun(uint32_t now)
     return false;
 }
 
-void MotorTask::set_position(uint16_t tgt_position)
+void MotorTask::set_position(int32_t tgt_position)
 {
 #ifdef DEBUG_SERIAL
     DEBUG_SERIAL.println(F("set_position called"));

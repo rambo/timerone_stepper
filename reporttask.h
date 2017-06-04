@@ -35,6 +35,12 @@ void Reporter::run(uint32_t now)
     DEBUG_SERIAL.println(motortask.homing, DEC);
 #endif
     // Run again in the required number of milliseconds.
+    motor_payload[1] = 'T'; // Timed report
+    pack_payload_position(2, motortask.current_position);
+    pack_payload_position(6, motortask.target_position);
+    motor_payload[10] = motortask.homing;
+    debug_print_payload_position(0, sizeof(motor_payload));
+    xbee.send(zb_motor_Tx);
     incRunTime(rate);
 }
 
