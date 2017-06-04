@@ -119,11 +119,11 @@ void MotorTask::home_done(void)
 #ifdef DEBUG_SERIAL
     DEBUG_SERIAL.println(F("home_done called"));
 #endif
+    current_position = 0;
+    target_position = 0;
     this->hard_stop();
     homing = false;
     stepdir = 0;
-    current_position = 0;
-    target_position = 0;
 }
 
 void MotorTask::set_max_speed(uint16_t speed)
