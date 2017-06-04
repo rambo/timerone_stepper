@@ -12,6 +12,7 @@
 #define MIN_PPS 20
 #define PPS_SNAP_LIMIT 80
 constexpr uint16_t MAX_PPS = USTEP_FACTOR * STEPS_PER_REV * MAX_RPS;
+constexpr uint8_t DTG_SPEED_FACTOR = 2;
 
 
 typedef void (*MotoTaskvoidFuncPtr)(void);
@@ -31,14 +32,16 @@ public:
     void set_pps(uint16_t pps);
     void accelerate();
     void set_target_speed(uint16_t speed);
+    void set_max_speed(uint16_t speed);
     void set_position(uint16_t tgt_position);
     volatile bool stepped;
-    volatile uint16_t current_position;
+    volatile int32_t current_position;
     bool homing;
     int8_t stepdir;
     uint16_t target_position;
     uint32_t last_speed_adjust;
     uint16_t target_speed = MAX_PPS;
+    uint16_t max_speed = MAX_PPS;
     uint16_t current_speed;
     Bounce homesw = Bounce();
     MotoTaskvoidFuncPtr stop_callback;
@@ -119,14 +122,24 @@ void MotorTask::home_done(void)
     homing = false;
     stepdir = 0;
     current_position = 0;
+    target_position = 0;
+}
+
+void MotorTask::set_max_speed(uint16_t speed)
+{
+    max_speed = speed;
+    if (max_speed > MAX_PPS)
+    {
+        max_speed = MAX_PPS;
+    }
 }
 
 void MotorTask::set_target_speed(uint16_t speed)
 {
     target_speed = speed;
-    if (target_speed > MAX_PPS)
+    if (target_speed > max_speed)
     {
-        target_speed = MAX_PPS;
+        target_speed = max_speed;
     }
     if (target_speed > 0 && target_speed < MIN_PPS)
     {
@@ -134,11 +147,9 @@ void MotorTask::set_target_speed(uint16_t speed)
     }
 }
 
+
 void MotorTask::accelerate(void)
 {
-#ifdef DEBUG_SERIAL
-    DEBUG_SERIAL.println(F("accelerate called"));
-#endif
     uint16_t set_current_speed;
     // limit the target speed to max we can manage with HW
     // We should be moving at min speed if at all
@@ -169,7 +180,7 @@ void MotorTask::accelerate(void)
         }
     }
 
-#ifdef DEBUG_SERIAL
+#if defined(DEBUG_SERIAL) && defined(VERBOSE_DEBUG)
     DEBUG_SERIAL.print(F("current_speed="));
     DEBUG_SERIAL.println(current_speed, DEC);
     DEBUG_SERIAL.print(F("set_current_speed="));
@@ -209,7 +220,7 @@ void MotorTask::hard_stop(void)
 
 void MotorTask::set_pps(uint16_t pps)
 {
-#ifdef DEBUG_SERIAL
+#if defined(DEBUG_SERIAL) && defined(VERBOSE_DEBUG)
     DEBUG_SERIAL.println(F("set_pps called"));
 #endif
     current_speed = pps;
@@ -245,9 +256,12 @@ void MotorTask::run(uint32_t now)
     if (!homing)
     {
         if (   stepdir < 0 && current_position <= target_position
-            || stepdir > 1 && current_position >= target_position)
+            || stepdir > 0 && current_position >= target_position)
         {
+            // time to stop
+            this->hard_stop();
         }
+        // Hit home switch
         if (stepdir < 1 && !homesw.read())
         {
             this->hard_stop();
@@ -255,7 +269,7 @@ void MotorTask::run(uint32_t now)
     }
     if ((now - last_speed_adjust) > SPEED_ADJUST_INTERVAL)
     {
-#ifdef DEBUG_SERIAL
+#if defined(DEBUG_SERIAL) && defined(VERBOSE_DEBUG)
         DEBUG_SERIAL.print(F("current_position="));
         DEBUG_SERIAL.println(current_position, DEC);
         DEBUG_SERIAL.print(F("target_position="));
@@ -273,8 +287,8 @@ void MotorTask::run(uint32_t now)
             {
                 dtg = current_position - target_position;
             }
-            // TODO: figure out a better accel/deccel algo
-            this->set_target_speed(dtg*4);
+            // TODO: figure out a better target deccel algo
+            this->set_target_speed(dtg*DTG_SPEED_FACTOR);
         }
         if (target_speed != current_speed)
         {

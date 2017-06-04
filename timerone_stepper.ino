@@ -11,7 +11,12 @@
 
 
 #define USE_XBEE
-#define DEBUG
+// Get this library from http://code.google.com/p/xbee-arduino/
+#include <SoftwareSerial.h>
+SoftwareSerial swSerial(A0, A1); // rx,tx
+#define DEBUG_SERIAL swSerial
+//#define DEBUG_SERIAL Serial
+//#define VERBOSE_DEBUG
 
 #define RDY_PIN 13
 
@@ -44,18 +49,14 @@ constexpr int8_t  CFG_VALUES[] = { 1, -1, 0 }; // -1 for open, 0 for LOW, 1 for 
 
 #ifdef USE_XBEE
 #define XBEE_SERIAL Serial
-// Get this library from http://code.google.com/p/xbee-arduino/
-#include <SoftwareSerial.h>
-SoftwareSerial swSerial(A0, A1); // rx,tx
-#define DEBUG_SERIAL swSerial
 #include <XBee.h>
 #include "xbee_tasks.h"
 #else
 //#include "serialtask.h"
 #include "sweeptask.h"
-#define DEBUG_SERIAL Serial
 #endif
 
+#include "reporttask.h"
 
 
 
@@ -64,15 +65,13 @@ void apply_driver_config_pins()
     for (uint8_t i=0; i<3; i++)
     {
         uint8_t pin = CFG_PINS[i];
-#ifndef USE_XBEE
-/*
-        Serial.print(F("stepstick CFG"));
-        Serial.print(i+1, DEC);
-        Serial.print(F(" PIN: "));
-        Serial.print(pin, DEC);
-        Serial.print(F(" VALUE: ")); 
-        Serial.println(CFG_VALUES[i], DEC);
-*/
+#if defined(DEBUG_SERIAL) && defined(VERBOSE_DEBUG)
+        DEBUG_SERIAL.print(F("stepstick CFG"));
+        DEBUG_SERIAL.print(i+1, DEC);
+        DEBUG_SERIAL.print(F(" PIN: "));
+        DEBUG_SERIAL.print(pin, DEC);
+        DEBUG_SERIAL.print(F(" VALUE: ")); 
+        DEBUG_SERIAL.println(CFG_VALUES[i], DEC);
 #endif
         switch (CFG_VALUES[i])
         {
@@ -132,21 +131,36 @@ void xbee_api_callback(ZBRxResponse rx)
     {
         case 'h':
         case 'H':
+#ifdef DEBUG_SERIAL
             DEBUG_SERIAL.println(F("Going home"));
             motortask.go_home();
+#endif
         break;
         case 's':
         case 'S':
+#ifdef DEBUG_SERIAL
             DEBUG_SERIAL.println(F("Stopping"));
             motortask.hard_stop();
+#endif
         break;
+        case 'f':
+        case 'F':
+            uint16_t maxspeed = ardubus_hex2uint(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4));
+#ifdef DEBUG_SERIAL
+            DEBUG_SERIAL.print(F("Setting max_speed"));
+            DEBUG_SERIAL.println(maxspeed, DEC);
+#endif
+            motortask.set_max_speed(maxspeed);
+        break
         case 'g':
         case 'G':
             uint16_t go_to = ardubus_hex2uint(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4));
+#ifdef DEBUG_SERIAL
             DEBUG_SERIAL.print(F("Going to "));
             DEBUG_SERIAL.println(go_to, DEC);
+#endif
             motortask.set_position(go_to);
-            motortask.set_target_speed(MAX_PPS);
+            motortask.set_target_speed(motortask.max_speed);
             motortask.start_stepping();
         break;
         
@@ -172,19 +186,23 @@ void motor_stop_callback()
 
 void loop()
 {
+    Reporter reporttask(5000);
+
 #ifdef USE_XBEE
     // Add the XBee API callback function pointer to the task
     motortask.stop_callback = &motor_stop_callback;
     xbeereader.callback = &xbee_api_callback;
     Task *tasks[] = { 
         &xbeereader,
-        &motortask
+        &motortask,
+        &reporttask
     };
 #else
     Sweeper sweeptask(10000);
     Task *tasks[] = { 
         &sweeptask,
-        &motortask
+        &motortask,
+        &reporttask
     };
 #endif
     motortask.go_home();

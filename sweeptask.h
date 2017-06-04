@@ -35,7 +35,7 @@ void Sweeper::run(uint32_t now)
         {
           DEBUG_SERIAL.println(F("Go to 800"));
           motortask.set_position(800);
-          motortask.set_target_speed(800);
+          motortask.set_target_speed(motortask.max_speed);
           motortask.start_stepping();
           on = true;
         }
