@@ -6,11 +6,13 @@
 #define FSA(x) FS(pgm_read_word(&(x)))
 // Generic helper implementation
 #define ARRAY_SIZE(a)      (sizeof(a) / sizeof(a[0]))
-//#define MOTOR_REPORT_TO 0x0013a200, 0x403276df
 #define MOTOR_REPORT_TO 0x0, 0x0
 
 
 #define USE_XBEE
+/* This seems to cause a reset loop when radio is connected
+#define XBEE_RESET_PIN A5
+*/
 // Get this library from http://code.google.com/p/xbee-arduino/
 #include <SoftwareSerial.h>
 SoftwareSerial swSerial(A0, A1); // rx,tx
@@ -187,7 +189,7 @@ void xbee_api_callback(ZBRxResponse rx)
         {
             uint16_t maxspeed = ardubus_hex2uint(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4));
 #ifdef DEBUG_SERIAL
-            DEBUG_SERIAL.print(F("Setting max_speed"));
+            DEBUG_SERIAL.print(F("Setting max_speed "));
             DEBUG_SERIAL.println(maxspeed, DEC);
 #endif
             motortask.set_max_speed(maxspeed);
@@ -196,6 +198,18 @@ void xbee_api_callback(ZBRxResponse rx)
         case 'g':
         case 'G':
         {
+#ifdef DEBUG_SERIAL
+            DEBUG_SERIAL.println(F("Got G-command: "));
+            for (uint8_t i=0; i<=8; i++)
+            {
+                DEBUG_SERIAL.print(F("rx.getData("));
+                DEBUG_SERIAL.print(i, DEC);
+                DEBUG_SERIAL.print(F(")=(char)'"));
+                DEBUG_SERIAL.print((char)rx.getData(i));
+                DEBUG_SERIAL.print(F("' "));
+                DEBUG_SERIAL.println(rx.getData(i));
+            }
+#endif
             int32_t go_to = ardubus_hex2long(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4),rx.getData(5),rx.getData(6),rx.getData(7), rx.getData(8));
 #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.print(F("Going to "));
