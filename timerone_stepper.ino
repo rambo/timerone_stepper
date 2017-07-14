@@ -198,6 +198,7 @@ void xbee_api_callback(ZBRxResponse rx)
         case 'g':
         case 'G':
         {
+/*
 #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.println(F("Got G-command: "));
             for (uint8_t i=0; i<=8; i++)
@@ -210,6 +211,7 @@ void xbee_api_callback(ZBRxResponse rx)
                 DEBUG_SERIAL.println(rx.getData(i));
             }
 #endif
+*/
             int32_t go_to = ardubus_hex2long(rx.getData(1),rx.getData(2),rx.getData(3), rx.getData(4),rx.getData(5),rx.getData(6),rx.getData(7), rx.getData(8));
 #ifdef DEBUG_SERIAL
             DEBUG_SERIAL.print(F("Going to "));
