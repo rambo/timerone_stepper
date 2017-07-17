@@ -187,8 +187,11 @@ void MotorTask::accelerate(void)
     DEBUG_SERIAL.print(F("set_current_speed="));
     DEBUG_SERIAL.println(set_current_speed, DEC);
 #endif
-if (set_current_speed == 0)
+    if (set_current_speed == 0)
     {
+#if defined(DEBUG_SERIAL)
+        DEBUG_SERIAL.println("speed 0 requested, going for stop");
+#endif
         this->hard_stop();
     }
     else
@@ -267,11 +270,17 @@ void MotorTask::run(uint32_t now)
             || stepdir > 0 && current_position >= target_position)
         {
             // time to stop
+#if defined(DEBUG_SERIAL)
+            DEBUG_SERIAL.println(F("Reached target"));
+#endif
             this->hard_stop();
         }
         // Hit home switch
         if (stepdir < 1 && !homesw.read())
         {
+#if defined(DEBUG_SERIAL)
+            DEBUG_SERIAL.println(F("Home switch hit!"));
+#endif
             this->hard_stop();
         }
     }
@@ -286,7 +295,7 @@ void MotorTask::run(uint32_t now)
         last_speed_adjust = now;
         if (!homing)
         {
-            uint16_t dtg;
+            uint32_t dtg;
             if (current_position < target_position)
             {
                 dtg = target_position - current_position;
@@ -296,7 +305,16 @@ void MotorTask::run(uint32_t now)
                 dtg = current_position - target_position;
             }
             // TODO: figure out a better target deccel algo
-            this->set_target_speed(dtg*DTG_SPEED_FACTOR);
+            uint16_t speedrequest;
+            if (dtg > MAX_PPS)
+            {
+                speedrequest = MAX_PPS;
+            }
+            else
+            {
+                speedrequest = dtg*DTG_SPEED_FACTOR;
+            }
+            this->set_target_speed(speedrequest);
         }
         if (target_speed != current_speed)
         {
